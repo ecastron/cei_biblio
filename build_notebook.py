@@ -282,6 +282,119 @@ print(f"Journals with 2-year mean citedness: {len(JOURNAL_2YR_IF):,} / {len(sour
 print(f"Journals with publisher name:        {len(JOURNAL_PUBLISHER):,} / {len(sources_cache):,}")
 """))
 
+# ── Cell 4c: WoS / Scopus enrichment ─────────────────────────────────────────
+cells.append(nbf.v4.new_markdown_cell("""\
+### WoS / Scopus enrichment
+
+Cross-reference our journals against `Revistas por cuartil SJR-JCR 2023.xlsx`
+to attach the Web of Science **JCR Impact Factor + best quartile** and Scopus
+**SJR + best quartile** to every paper, joined by ISSN first and then by
+normalized journal name as a fallback.
+
+Both sheets share the same overall layout — header on row 18, multi-ISSN
+strings like `"00079235, 15424863"` per row. The lookup is built once per
+source (journal) and then attached to each paper in `build_records`.
+"""))
+
+cells.append(nbf.v4.new_code_cell("""\
+import re
+
+WOS_SCOPUS_FILE = pathlib.Path("Revistas por cuartil SJR-JCR 2023.xlsx")
+
+def _norm_issn(s: str) -> str | None:
+    if not s: return None
+    s = re.sub(r"[^0-9Xx]", "", str(s)).upper()
+    return s if len(s) == 8 else None
+
+def _norm_name(s: str) -> str | None:
+    if not s or pd.isna(s): return None
+    s = str(s).lower()
+    s = re.sub(r"[^\\w\\s]", " ", s)
+    s = re.sub(r"\\s+", " ", s).strip()
+    return s or None
+
+def _norm_quartile(q):
+    if q is None or (isinstance(q, float) and pd.isna(q)): return None
+    s = str(q).strip().upper()
+    if s in {"Q1", "Q2", "Q3", "Q4"}: return s
+    return None
+
+def _norm_value(v):
+    try:
+        f = float(v)
+        return f if not pd.isna(f) else None
+    except (TypeError, ValueError):
+        return None
+
+def _split_issns(raw):
+    if raw is None or (isinstance(raw, float) and pd.isna(raw)): return []
+    out = []
+    for tok in re.split(r"[,;\\s]+", str(raw)):
+        n = _norm_issn(tok)
+        if n: out.append(n)
+    return out
+
+def _load_metric_sheet(file: pathlib.Path, sheet: str, value_col: str) -> tuple[dict, dict]:
+    \"\"\"Return (issn_lookup, name_lookup) for one sheet.\"\"\"
+    if not file.exists():
+        print(f"  ! {file} not found — skipping {sheet}")
+        return {}, {}
+    df = pd.read_excel(file, sheet_name=sheet, header=18).dropna(how="all")
+    issn_lookup: dict[str, dict] = {}
+    name_lookup: dict[str, dict] = {}
+    for _, row in df.iterrows():
+        rec = {
+            "value":    _norm_value(row.get(value_col)),
+            "quartile": _norm_quartile(row.get("Mejor Q")),
+        }
+        if rec["value"] is None and rec["quartile"] is None:
+            continue
+        for issn in _split_issns(row.get("ISSN")):
+            issn_lookup.setdefault(issn, rec)
+        n = _norm_name(row.get("Revista"))
+        if n:
+            name_lookup.setdefault(n, rec)
+    print(f"  {sheet}: {len(df):,} rows → {len(issn_lookup):,} ISSNs · {len(name_lookup):,} names")
+    return issn_lookup, name_lookup
+
+wos_issn,    wos_name    = _load_metric_sheet(WOS_SCOPUS_FILE, "WoS",    "JCR")
+scopus_issn, scopus_name = _load_metric_sheet(WOS_SCOPUS_FILE, "Scopus", "SJR")
+
+def _source_issns(src: dict) -> list[str]:
+    out: list[str] = []
+    if src.get("issn_l"):
+        n = _norm_issn(src["issn_l"])
+        if n: out.append(n)
+    for raw in (src.get("issn") or []):
+        n = _norm_issn(raw)
+        if n and n not in out: out.append(n)
+    return out
+
+def _match(src: dict, issn_lookup: dict, name_lookup: dict) -> dict:
+    for issn in _source_issns(src):
+        if issn in issn_lookup:
+            return issn_lookup[issn]
+    n = _norm_name(src.get("display_name"))
+    if n and n in name_lookup:
+        return name_lookup[n]
+    return {"value": None, "quartile": None}
+
+JOURNAL_WOS:    dict[str, dict] = {}
+JOURNAL_SCOPUS: dict[str, dict] = {}
+n_wos_hit = n_scopus_hit = 0
+for sid, src in sources_cache.items():
+    w = _match(src, wos_issn, wos_name)
+    s = _match(src, scopus_issn, scopus_name)
+    JOURNAL_WOS[sid]    = w
+    JOURNAL_SCOPUS[sid] = s
+    if w["value"] is not None or w["quartile"]: n_wos_hit += 1
+    if s["value"] is not None or s["quartile"]: n_scopus_hit += 1
+
+print(f"\\nMatch coverage across {len(sources_cache):,} cached sources:")
+print(f"  WoS    : {n_wos_hit:,} ({100*n_wos_hit/max(len(sources_cache),1):.1f}%)")
+print(f"  Scopus : {n_scopus_hit:,} ({100*n_scopus_hit/max(len(sources_cache),1):.1f}%)")
+"""))
+
 # ── Cell 4: Classification helpers ───────────────────────────────────────────
 cells.append(nbf.v4.new_code_cell("""\
 def normalize_unit(raw: str) -> str:
@@ -352,11 +465,14 @@ def _extract_journal(work: dict) -> tuple[str, str | None]:
 
 def build_records(works: list) -> pd.DataFrame:
     rows = []
+    _empty = {"value": None, "quartile": None}
     for work in works:
         unit_set = classify_work(work)
         journal, journal_id = _extract_journal(work)
         journal_2yr_if = JOURNAL_2YR_IF.get(journal_id) if journal_id else None
         publisher      = JOURNAL_PUBLISHER.get(journal_id) if journal_id else None
+        wos    = JOURNAL_WOS.get(journal_id, _empty)    if journal_id else _empty
+        scopus = JOURNAL_SCOPUS.get(journal_id, _empty) if journal_id else _empty
         base = {
             "openalex_id":              work.get("id", ""),
             "doi":                      work.get("doi", ""),
@@ -367,6 +483,10 @@ def build_records(works: list) -> pd.DataFrame:
             "journal_id":               journal_id,
             "journal_2yr_mean_citedness": journal_2yr_if,
             "publisher":                publisher,
+            "wos_jif":                  wos["value"],
+            "wos_quartile":             wos["quartile"],
+            "scopus_sjr":               scopus["value"],
+            "scopus_quartile":          scopus["quartile"],
         }
         for unit in unit_set:
             rows.append({**base, "unit": unit})
@@ -696,7 +816,11 @@ papers_export = [
             round(float(row["journal_2yr_mean_citedness"]), 3)
             if pd.notna(row["journal_2yr_mean_citedness"]) else None
         ),
-        "publisher":      row["publisher"] if pd.notna(row["publisher"]) else None,
+        "publisher":      row["publisher"]      if pd.notna(row["publisher"])      else None,
+        "wos_jif":        (round(float(row["wos_jif"]),   3) if pd.notna(row["wos_jif"])    else None),
+        "wos_quartile":   row["wos_quartile"]   if pd.notna(row["wos_quartile"])   else None,
+        "scopus_sjr":     (round(float(row["scopus_sjr"]), 3) if pd.notna(row["scopus_sjr"]) else None),
+        "scopus_quartile":row["scopus_quartile"] if pd.notna(row["scopus_quartile"]) else None,
         "title":          row["title"],
         "doi":            row["doi"] if pd.notna(row["doi"]) and row["doi"] else None,
         "cited_by_count": int(row["cited_by_count"]),
