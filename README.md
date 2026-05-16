@@ -7,6 +7,7 @@ Compares the research output of the **Center for Integrative Ecology (Centro de 
 | Unit |
 |------|
 | Center for Integrative Ecology (CEI) |
+| Center for Bioinformatics, Simulations and Modelling (CBSM) |
 | Facultad de Ciencias de la Salud |
 | Instituto de Ciencias Biológicas |
 | Facultad de Ciencias Agrarias |

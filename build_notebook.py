@@ -17,6 +17,7 @@ bibliometric API.
 | Label | Spanish / English names |
 |-------|------------------------|
 | **CEI** | Centro de Ecología Integrativa / Center for Integrative Ecology |
+| CBSM | Centro de Bioinformática, Simulación y Modelado / Center for Bioinformatics, Simulations and Modelling |
 | Fac. Ciencias de la Salud | Facultad de Ciencias de la Salud / Faculty of Health Sciences |
 | Inst. Ciencias Biológicas | Instituto de Ciencias Biológicas / Institute of Biological Sciences |
 | Fac. Ciencias Agrarias | Facultad de Ciencias Agrarias / Faculty of Agrarian Sciences |
@@ -81,6 +82,8 @@ CEI_RE = re.compile("|".join(_CEI_PATTERNS), re.IGNORECASE)
 
 # ── Target unit patterns (order matters: first match wins) ───────────────────
 UNIT_LABEL_PATTERNS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"centro\\s+de\\s+bioinform[áa]tica|center\\s+for\\s+bioinformatics|bioinformatics?,?\\s+simulations?\\s+and\\s+modell?ing|\\bCBSM\\b", re.I),
+     "CBSM"),
     (re.compile(r"ciencias\\s+de\\s+la\\s+salud|health\\s+sciences|faculty\\s+of\\s+health", re.I),
      "Fac. Ciencias de la Salud"),
     (re.compile(r"ciencias\\s+biol[oó]gicas|biological\\s+sciences|instituto\\s+de\\s+ciencias\\s+biol", re.I),
@@ -370,6 +373,7 @@ pivot = (
 
 palette = {
     "CEI":                       "#1f77b4",
+    "CBSM":                      "#17becf",
     "Fac. Ciencias de la Salud": "#ff7f0e",
     "Inst. Ciencias Biológicas": "#2ca02c",
     "Fac. Ciencias Agrarias":    "#d62728",
