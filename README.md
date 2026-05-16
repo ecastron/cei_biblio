@@ -7,6 +7,7 @@ Compares the research output of the **Center for Integrative Ecology (Centro de 
 | Unit |
 |------|
 | Center for Integrative Ecology (CEI) |
+| Center for Bioinformatics, Simulations and Modelling (CBSM) |
 | Facultad de Ciencias de la Salud |
 | Instituto de Ciencias Biológicas |
 | Facultad de Ciencias Agrarias |
@@ -20,10 +21,14 @@ Compares the research output of the **Center for Integrative Ecology (Centro de 
 - **Publication counts over time** — articles per year per unit (2020–present)
 - **Citation impact** — h-index, mean and total citations per unit
 - **Journal distribution** — top journals per unit and a cross-unit heatmap
+- **Journal impact** — each paper is enriched with its journal's
+  *2-year mean citedness* from OpenAlex (an open analog of JCR Impact
+  Factor, **not** Clarivate's paywalled IF); per-unit mean and median
+  are included in `docs/data.json`
 
 ## Run in Google Colab (recommended for iPad / browser)
 
-[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ecastron/cei_biblio/blob/claude/project-planning-PKOFJ/cei_biblio.ipynb)
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ecastron/cei_biblio/blob/main/cei_biblio.ipynb)
 
 1. Click the badge above, or go to [colab.research.google.com](https://colab.research.google.com) → **File → Open notebook → GitHub** → `ecastron/cei_biblio`
 2. Select `cei_biblio.ipynb`
