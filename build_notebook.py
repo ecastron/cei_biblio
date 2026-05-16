@@ -298,8 +298,23 @@ source (journal) and then attached to each paper in `build_records`.
 
 cells.append(nbf.v4.new_code_cell("""\
 import re
+import urllib.request
 
 WOS_SCOPUS_FILE = pathlib.Path("Revistas por cuartil SJR-JCR 2023.xlsx")
+WOS_SCOPUS_URL  = (
+    "https://raw.githubusercontent.com/ecastron/cei_biblio/"
+    "claude/project-planning-PKOFJ/"
+    "Revistas%20por%20cuartil%20SJR-JCR%202023.xlsx"
+)
+
+if not WOS_SCOPUS_FILE.exists():
+    print(f"Downloading {WOS_SCOPUS_FILE.name} from GitHub …")
+    try:
+        urllib.request.urlretrieve(WOS_SCOPUS_URL, WOS_SCOPUS_FILE)
+        print(f"  ✓ saved → {WOS_SCOPUS_FILE} ({WOS_SCOPUS_FILE.stat().st_size/1024/1024:.1f} MB)")
+    except Exception as e:
+        print(f"  ✗ download failed: {e}")
+        print("  WoS / Scopus columns will be null in the export.")
 
 def _norm_issn(s: str) -> str | None:
     if not s: return None
