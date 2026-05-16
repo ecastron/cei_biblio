@@ -139,7 +139,7 @@ def fetch_utalca_works() -> list:
     return all_works
 
 raw_works = load_cache()
-if raw_works is None:
+if not raw_works:
     raw_works = fetch_utalca_works()
     save_cache(raw_works)
 
