@@ -320,14 +320,36 @@ def classify_work(work: dict) -> set:
 
 # ── Cell 5: Build master DataFrame ───────────────────────────────────────────
 cells.append(nbf.v4.new_code_cell("""\
+def _extract_journal(work: dict) -> tuple[str, str | None]:
+    \"\"\"Pull a journal display name + OpenAlex source id from a work record.
+
+    OpenAlex sometimes leaves ``primary_location.source.display_name``
+    empty even when the same name is available under the legacy
+    ``host_venue`` field or under another entry in ``locations[]``.
+    Walk the fallback chain so engineering / proceedings articles
+    don't all collapse into "Unknown Journal".
+    \"\"\"
+    loc = work.get("primary_location") or {}
+    src = loc.get("source") or {}
+    if src.get("display_name"):
+        return src["display_name"], src.get("id")
+
+    hv = work.get("host_venue") or {}
+    if hv.get("display_name"):
+        return hv["display_name"], hv.get("id")
+
+    for other in (work.get("locations") or []):
+        osrc = other.get("source") or {}
+        if osrc.get("display_name"):
+            return osrc["display_name"], osrc.get("id")
+
+    return "Unknown Journal", src.get("id")  # may still be None
+
 def build_records(works: list) -> pd.DataFrame:
     rows = []
     for work in works:
         unit_set = classify_work(work)
-        loc = work.get("primary_location") or {}
-        src = loc.get("source") or {}
-        journal = src.get("display_name", "Unknown Journal")
-        journal_id = src.get("id")
+        journal, journal_id = _extract_journal(work)
         journal_2yr_if = JOURNAL_2YR_IF.get(journal_id) if journal_id else None
         base = {
             "openalex_id":              work.get("id", ""),
