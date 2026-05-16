@@ -36,7 +36,15 @@ OpenAlex API (https://api.openalex.org) — no API key required.
 Data retrieved via cursor pagination; cached locally to `openalex_cache.json`.
 """))
 
-# ── Cell 1: Imports and configuration ────────────────────────────────────────
+# ── Cell 1: Install dependencies (needed in Colab) ───────────────────────────
+cells.append(nbf.v4.new_code_cell("""\
+# Install pyalex if not already present (required in Google Colab)
+import importlib, subprocess, sys
+if importlib.util.find_spec("pyalex") is None:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", "pyalex"])
+"""))
+
+# ── Cell 2: Imports and configuration ────────────────────────────────────────
 cells.append(nbf.v4.new_code_cell("""\
 import re
 import time
@@ -54,7 +62,7 @@ import pyalex
 from pyalex import Works, config
 
 # ── Polite pool — set your email here ────────────────────────────────────────
-config.email = "research@utalca.cl"
+config.email = "castronallar@gmail.com"
 config.max_retries = 5
 config.retry_backoff_factor = 0.5
 config.retry_http_codes = [429, 500, 503]
