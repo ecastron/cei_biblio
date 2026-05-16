@@ -28,7 +28,7 @@ Compares the research output of the **Center for Integrative Ecology (Centro de 
 
 ## Run in Google Colab (recommended for iPad / browser)
 
-[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ecastron/cei_biblio/blob/claude/project-planning-PKOFJ/cei_biblio.ipynb)
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ecastron/cei_biblio/blob/main/cei_biblio.ipynb)
 
 1. Click the badge above, or go to [colab.research.google.com](https://colab.research.google.com) → **File → Open notebook → GitHub** → `ecastron/cei_biblio`
 2. Select `cei_biblio.ipynb`
