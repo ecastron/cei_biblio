@@ -107,6 +107,7 @@ print(f"Comparing CEI against {len(TARGET_UNITS)} units, articles from {YEAR_MIN
 # ── Cell 2: Cache helpers ─────────────────────────────────────────────────────
 cells.append(nbf.v4.new_code_cell("""\
 CACHE_FILE = pathlib.Path("openalex_cache.json")
+SOURCES_CACHE_FILE = pathlib.Path("sources_cache.json")
 
 def save_cache(works: list, path: pathlib.Path = CACHE_FILE) -> None:
     with open(path, "w", encoding="utf-8") as f:
@@ -118,6 +119,19 @@ def load_cache(path: pathlib.Path = CACHE_FILE) -> list | None:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
         print(f"Loaded {len(data):,} works from cache ({path})")
+        return data
+    return None
+
+def save_sources_cache(sources: dict, path: pathlib.Path = SOURCES_CACHE_FILE) -> None:
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(sources, f)
+    print(f"Cached {len(sources):,} sources → {path}")
+
+def load_sources_cache(path: pathlib.Path = SOURCES_CACHE_FILE) -> dict | None:
+    if path.exists():
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        print(f"Loaded {len(data):,} sources from cache ({path})")
         return data
     return None
 """))
@@ -166,6 +180,64 @@ if not raw_works:
 print(f"Total works: {len(raw_works):,}")
 """))
 
+# ── Cell 4b: Journal-source enrichment (impact factor proxy) ─────────────────
+cells.append(nbf.v4.new_markdown_cell("""\
+### Journal-source enrichment
+
+For each unique primary-source (journal) referenced by our works, fetch the
+source's `summary_stats["2yr_mean_citedness"]` from the OpenAlex *Sources*
+endpoint. This is OpenAlex's open analog of a 2-year Journal Impact Factor
+(it is **not** Clarivate's JCR IF, which is paywalled). The values are
+cached to `sources_cache.json` so re-runs are instant.
+"""))
+
+cells.append(nbf.v4.new_code_cell("""\
+from pyalex import Sources
+
+def collect_source_ids(works: list) -> list[str]:
+    ids: set[str] = set()
+    for w in works:
+        loc = w.get("primary_location") or {}
+        src = loc.get("source") or {}
+        sid = src.get("id")
+        if sid:
+            ids.add(sid)
+    return sorted(ids)
+
+def fetch_sources(source_ids: list[str]) -> dict:
+    \"\"\"Fetch sources in batches of 50 via OpenAlex; return {id: source_dict}.\"\"\"
+    out: dict[str, dict] = {}
+    batch_size = 50
+    batches = [source_ids[i:i+batch_size] for i in range(0, len(source_ids), batch_size)]
+    for batch in tqdm(batches, desc="Fetching sources from OpenAlex"):
+        results = Sources().filter(openalex_id="|".join(batch)).get(per_page=batch_size)
+        for s in results:
+            if s.get("id"):
+                out[s["id"]] = s
+        time.sleep(0.12)
+    return out
+
+sources_cache = load_sources_cache() or {}
+needed_ids = [sid for sid in collect_source_ids(raw_works) if sid not in sources_cache]
+if needed_ids:
+    print(f"Fetching {len(needed_ids):,} new sources (cached: {len(sources_cache):,})")
+    fresh = fetch_sources(needed_ids)
+    sources_cache.update(fresh)
+    save_sources_cache(sources_cache)
+else:
+    print(f"All {len(sources_cache):,} sources already cached")
+
+# Build {source_id → 2yr_mean_citedness} lookup
+JOURNAL_2YR_IF: dict[str, float] = {}
+for sid, src in sources_cache.items():
+    stats = src.get("summary_stats") or {}
+    val = stats.get("2yr_mean_citedness")
+    if val is not None:
+        JOURNAL_2YR_IF[sid] = float(val)
+
+print(f"Journals with 2-year mean citedness: {len(JOURNAL_2YR_IF):,} / {len(sources_cache):,}")
+"""))
+
 # ── Cell 4: Classification helpers ───────────────────────────────────────────
 cells.append(nbf.v4.new_code_cell("""\
 def normalize_unit(raw: str) -> str:
@@ -197,19 +269,26 @@ def build_records(works: list) -> pd.DataFrame:
         loc = work.get("primary_location") or {}
         src = loc.get("source") or {}
         journal = src.get("display_name", "Unknown Journal")
+        journal_id = src.get("id")
+        journal_2yr_if = JOURNAL_2YR_IF.get(journal_id) if journal_id else None
         base = {
-            "openalex_id":    work.get("id", ""),
-            "doi":            work.get("doi", ""),
-            "title":          work.get("title", ""),
-            "year":           work.get("publication_year"),
-            "cited_by_count": work.get("cited_by_count", 0) or 0,
-            "journal":        journal,
+            "openalex_id":              work.get("id", ""),
+            "doi":                      work.get("doi", ""),
+            "title":                    work.get("title", ""),
+            "year":                     work.get("publication_year"),
+            "cited_by_count":           work.get("cited_by_count", 0) or 0,
+            "journal":                  journal,
+            "journal_id":               journal_id,
+            "journal_2yr_mean_citedness": journal_2yr_if,
         }
         for unit in unit_set:
             rows.append({**base, "unit": unit})
     df = pd.DataFrame(rows)
     df["year"]           = pd.to_numeric(df["year"], errors="coerce").astype("Int64")
     df["cited_by_count"] = pd.to_numeric(df["cited_by_count"], errors="coerce").fillna(0)
+    df["journal_2yr_mean_citedness"] = pd.to_numeric(
+        df["journal_2yr_mean_citedness"], errors="coerce"
+    )
     return df
 
 df = build_records(raw_works)
@@ -476,6 +555,8 @@ summary = (
         total_cit    = ("cited_by_count", "sum"),
         mean_cit     = ("cited_by_count", "mean"),
         h_index      = ("cited_by_count", h_index),
+        mean_if      = ("journal_2yr_mean_citedness", "mean"),
+        median_if    = ("journal_2yr_mean_citedness", "median"),
         first_year   = ("year", "min"),
         last_year    = ("year", "max"),
     )
@@ -483,13 +564,20 @@ summary = (
     .reset_index()
     .rename(columns={"unit":"Unit","papers":"Papers",
                      "total_cit":"Total Citations","mean_cit":"Mean Cit./Paper",
-                     "h_index":"h-index","first_year":"From","last_year":"To"})
+                     "h_index":"h-index",
+                     "mean_if":"Mean Journal IF","median_if":"Median Journal IF",
+                     "first_year":"From","last_year":"To"})
 )
 
 display(
     summary.style
     .background_gradient(subset=["Papers","Total Citations","h-index"], cmap="Blues")
-    .format({"Mean Cit./Paper": "{:.2f}", "Total Citations": "{:,.0f}"})
+    .format({
+        "Mean Cit./Paper":   "{:.2f}",
+        "Total Citations":   "{:,.0f}",
+        "Mean Journal IF":   "{:.2f}",
+        "Median Journal IF": "{:.2f}",
+    }, na_rep="—")
     .set_caption("Bibliometric Summary — Universidad de Talca (2020+)")
 )
 """))
@@ -515,6 +603,11 @@ papers_export = [
         "unit":           row["unit"],
         "year":           int(row["year"]) if pd.notna(row["year"]) else None,
         "journal":        row["journal"],
+        "journal_id":     row["journal_id"] if pd.notna(row["journal_id"]) else None,
+        "journal_2yr_mean_citedness": (
+            round(float(row["journal_2yr_mean_citedness"]), 3)
+            if pd.notna(row["journal_2yr_mean_citedness"]) else None
+        ),
         "title":          row["title"],
         "doi":            row["doi"] if pd.notna(row["doi"]) and row["doi"] else None,
         "cited_by_count": int(row["cited_by_count"]),
@@ -524,11 +617,19 @@ papers_export = [
 
 summary_export = [
     {
-        "unit":            row["Unit"],
-        "papers":          int(row["Papers"]),
-        "total_citations": int(row["Total Citations"]),
-        "mean_citations":  round(float(row["Mean Cit./Paper"]), 2),
-        "h_index":         int(row["h-index"]),
+        "unit":                       row["Unit"],
+        "papers":                     int(row["Papers"]),
+        "total_citations":            int(row["Total Citations"]),
+        "mean_citations":             round(float(row["Mean Cit./Paper"]), 2),
+        "h_index":                    int(row["h-index"]),
+        "mean_journal_2yr_citedness": (
+            round(float(row["Mean Journal IF"]), 2)
+            if pd.notna(row["Mean Journal IF"]) else None
+        ),
+        "median_journal_2yr_citedness": (
+            round(float(row["Median Journal IF"]), 2)
+            if pd.notna(row["Median Journal IF"]) else None
+        ),
         "first_year":      int(row["From"]) if pd.notna(row["From"]) else None,
         "last_year":       int(row["To"])   if pd.notna(row["To"])   else None,
     }

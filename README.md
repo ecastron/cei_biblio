@@ -20,6 +20,10 @@ Compares the research output of the **Center for Integrative Ecology (Centro de 
 - **Publication counts over time** — articles per year per unit (2020–present)
 - **Citation impact** — h-index, mean and total citations per unit
 - **Journal distribution** — top journals per unit and a cross-unit heatmap
+- **Journal impact** — each paper is enriched with its journal's
+  *2-year mean citedness* from OpenAlex (an open analog of JCR Impact
+  Factor, **not** Clarivate's paywalled IF); per-unit mean and median
+  are included in `docs/data.json`
 
 ## Run in Google Colab (recommended for iPad / browser)
 
