@@ -204,16 +204,41 @@ def collect_source_ids(works: list) -> list[str]:
             ids.add(sid)
     return sorted(ids)
 
+def _short_id(full_id: str) -> str:
+    return full_id.rsplit("/", 1)[-1]
+
 def fetch_sources(source_ids: list[str]) -> dict:
-    \"\"\"Fetch sources in batches of 50 via OpenAlex; return {id: source_dict}.\"\"\"
+    \"\"\"Fetch sources in batches of 50 via OpenAlex; return {id: source_dict}.
+
+    Uses the openalex_id filter with pipe-OR (per OpenAlex docs). Falls back
+    to per-id fetch on batch errors so a single bad ID doesn't break a run.
+    \"\"\"
     out: dict[str, dict] = {}
     batch_size = 50
     batches = [source_ids[i:i+batch_size] for i in range(0, len(source_ids), batch_size)]
     for batch in tqdm(batches, desc="Fetching sources from OpenAlex"):
-        results = Sources().filter(openalex_id="|".join(batch)).get(per_page=batch_size)
-        for s in results:
-            if s.get("id"):
-                out[s["id"]] = s
+        short_ids = [_short_id(s) for s in batch]
+        try:
+            results = Sources().filter(openalex_id="|".join(short_ids)).get(per_page=batch_size)
+            got = {s["id"]: s for s in results if s.get("id")}
+            # If the filter returned fewer than requested (e.g. some IDs invalid),
+            # fall back to per-id for the missing ones.
+            missing = [sid for sid in batch if sid not in got]
+            for sid in missing:
+                try:
+                    out[sid] = Sources()[_short_id(sid)]
+                except Exception:
+                    pass
+                time.sleep(0.05)
+            out.update(got)
+        except Exception as e:
+            print(f"  ! batch error ({len(batch)} ids), falling back per-id: {e}")
+            for sid in batch:
+                try:
+                    out[sid] = Sources()[_short_id(sid)]
+                except Exception:
+                    pass
+                time.sleep(0.05)
         time.sleep(0.12)
     return out
 
