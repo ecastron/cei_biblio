@@ -482,9 +482,58 @@ display(
 
 # ── Cell 14: Export ───────────────────────────────────────────────────────────
 cells.append(nbf.v4.new_code_cell("""\
+import datetime
+
+# ── CSV export ────────────────────────────────────────────────────────────────
 df.to_csv("works_by_unit.csv", index=False)
 summary.to_csv("summary_by_unit.csv", index=False)
 print("Exported works_by_unit.csv and summary_by_unit.csv")
+
+# ── Website data export ───────────────────────────────────────────────────────
+docs_dir = pathlib.Path("docs")
+docs_dir.mkdir(exist_ok=True)
+
+work_unit_export = df[df["unit"].isin(ALL_UNITS)].drop_duplicates(subset=["openalex_id", "unit"])
+
+papers_export = [
+    {
+        "id":             row["openalex_id"],
+        "unit":           row["unit"],
+        "year":           int(row["year"]) if pd.notna(row["year"]) else None,
+        "journal":        row["journal"],
+        "title":          row["title"],
+        "doi":            row["doi"] if pd.notna(row["doi"]) and row["doi"] else None,
+        "cited_by_count": int(row["cited_by_count"]),
+    }
+    for _, row in work_unit_export.iterrows()
+]
+
+summary_export = [
+    {
+        "unit":            row["Unit"],
+        "papers":          int(row["Papers"]),
+        "total_citations": int(row["Total Citations"]),
+        "mean_citations":  round(float(row["Mean Cit./Paper"]), 2),
+        "h_index":         int(row["h-index"]),
+        "first_year":      int(row["From"]) if pd.notna(row["From"]) else None,
+        "last_year":       int(row["To"])   if pd.notna(row["To"])   else None,
+    }
+    for _, row in summary.iterrows()
+]
+
+site_data = {
+    "generated":  datetime.date.today().isoformat(),
+    "year_range": [YEAR_MIN, int(df["year"].dropna().max())],
+    "units":      ALL_UNITS,
+    "papers":     papers_export,
+    "summary":    summary_export,
+}
+
+with open(docs_dir / "data.json", "w", encoding="utf-8") as fh:
+    json.dump(site_data, fh, ensure_ascii=False, indent=2)
+
+print(f"Exported {len(papers_export):,} paper records → docs/data.json")
+print("Interactive website ready — open docs/index.html or enable GitHub Pages on the docs/ folder")
 """))
 
 nb.cells = cells

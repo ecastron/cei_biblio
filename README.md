@@ -40,6 +40,21 @@ pip install -r requirements.txt
 jupyter notebook cei_biblio.ipynb
 ```
 
+## Interactive website
+
+After running the notebook, a `docs/data.json` file is generated. The interactive site at `docs/index.html` reads it and provides three views — publications over time, citation impact, and journal distribution — all filterable by unit.
+
+**To publish via GitHub Pages:**
+1. Go to your repository → **Settings → Pages**
+2. Set source to **Deploy from a branch**, branch `main` (or your working branch), folder **`/docs`**
+3. The site will be live at `https://ecastron.github.io/cei_biblio/`
+
+**To preview locally:**
+```bash
+python -m http.server 8000 --directory docs/
+# then open http://localhost:8000
+```
+
 ## Data source
 
 [OpenAlex](https://openalex.org) — open, free bibliometric database covering 200M+ scholarly works.  

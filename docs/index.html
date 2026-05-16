@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CEI Bibliometric Explorer — Universidad de Talca</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f5f7fa;
+      color: #1a1a2e;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1a3a6e 0%, #2563a8 100%);
+      color: white;
+      padding: 2rem;
+      text-align: center;
+    }
+    header h1 {
+      margin: 0 0 0.5rem;
+      font-size: clamp(1.3rem, 4vw, 2rem);
+      font-weight: 700;
+    }
+    header p { margin: 0; opacity: 0.85; font-size: clamp(0.85rem, 2vw, 1rem); }
+
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 1rem;
+      padding: 1.5rem 2rem;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .stat-card {
+      background: white;
+      border-radius: 12px;
+      padding: 1.1rem 0.8rem;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    }
+    .stat-card .value {
+      font-size: 1.7rem;
+      font-weight: 700;
+      color: #1a3a6e;
+      line-height: 1;
+    }
+    .stat-card .label {
+      font-size: 0.72rem;
+      color: #777;
+      margin-top: 0.3rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .tabs-container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 1.5rem 2rem;
+    }
+    .tab-nav {
+      display: flex;
+      gap: 0.25rem;
+      border-bottom: 2px solid #dde5f0;
+      margin-bottom: 1.5rem;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .tab-btn {
+      background: none;
+      border: none;
+      padding: 0.75rem 1.1rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: #666;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      white-space: nowrap;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .tab-btn:hover { color: #1a3a6e; }
+    .tab-btn.active { color: #1a3a6e; border-bottom-color: #1a3a6e; font-weight: 600; }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    .chart-card {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+      margin-bottom: 1.5rem;
+    }
+    .chart-card h2 {
+      margin: 0 0 1rem;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #1a3a6e;
+    }
+
+    .controls {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    .controls label {
+      font-size: 0.875rem;
+      color: #444;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .controls select {
+      font-size: 0.875rem;
+      padding: 0.4rem 0.75rem;
+      border: 1px solid #c8d5e8;
+      border-radius: 6px;
+      background: white;
+      color: #1a1a2e;
+      cursor: pointer;
+    }
+    .note { font-size: 0.78rem; color: #999; margin-top: 0.75rem; }
+
+    #loading {
+      text-align: center;
+      padding: 5rem 2rem;
+      color: #888;
+      font-size: 1rem;
+      line-height: 1.8;
+    }
+    #loading code {
+      display: inline-block;
+      background: #f0f4f8;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.85rem;
+    }
+
+    footer {
+      text-align: center;
+      padding: 1.5rem 2rem;
+      color: #aaa;
+      font-size: 0.78rem;
+      border-top: 1px solid #e8edf4;
+    }
+    footer a { color: #2563a8; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>CEI Bibliometric Explorer</h1>
+  <p>Center for Integrative Ecology vs Academic Units &nbsp;·&nbsp; Universidad de Talca &nbsp;·&nbsp; 2020–present</p>
+</header>
+
+<div id="loading">Loading data…</div>
+
+<div id="app" style="display:none">
+  <div class="stats-row" id="stats-row"></div>
+
+  <div class="tabs-container">
+    <nav class="tab-nav">
+      <button class="tab-btn active" data-tab="publications">📈 Publications</button>
+      <button class="tab-btn" data-tab="impact">🏆 Citation Impact</button>
+      <button class="tab-btn" data-tab="journals">📰 Journals</button>
+    </nav>
+
+    <div class="tab-panel active" id="tab-publications">
+      <div class="chart-card">
+        <h2>Annual Publications per Unit</h2>
+        <div id="chart-timeline" style="height:440px"></div>
+        <p class="note">Click unit names in the legend to show/hide them. Double-click to isolate one unit.</p>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-impact">
+      <div class="chart-card">
+        <div class="controls">
+          <label>Metric:
+            <select id="impact-metric">
+              <option value="h_index">h-index</option>
+              <option value="mean_citations">Mean Citations / Paper</option>
+              <option value="total_citations">Total Citations</option>
+              <option value="papers">Total Papers</option>
+            </select>
+          </label>
+        </div>
+        <h2 id="impact-title">h-index by Unit</h2>
+        <div id="chart-impact" style="height:440px"></div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-journals">
+      <div class="chart-card">
+        <div class="controls">
+          <label>Unit:
+            <select id="journal-unit"></select>
+          </label>
+        </div>
+        <h2 id="journals-title">Top Journals</h2>
+        <div id="chart-journals" style="height:440px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer id="footer"></footer>
+
+<script>
+const PALETTE = {
+  "CEI":                        "#1f77b4",
+  "Fac. Ciencias de la Salud":  "#ff7f0e",
+  "Inst. Ciencias Biológicas":  "#2ca02c",
+  "Fac. Ciencias Agrarias":     "#d62728",
+  "Inst. Química R. Naturales": "#9467bd",
+  "Inst. Matemáticas":          "#8c564b",
+  "Fac. Medicina":              "#e377c2",
+  "Fac. Ingeniería":            "#bcbd22",
+  "Other UTalca":               "#7f7f7f",
+};
+
+const METRIC_LABELS = {
+  h_index:         "h-index",
+  mean_citations:  "Mean Citations / Paper",
+  total_citations: "Total Citations",
+  papers:          "Total Papers",
+};
+
+const BASE_LAYOUT = {
+  font: { family: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", size: 12 },
+  paper_bgcolor: "white",
+  plot_bgcolor:  "white",
+};
+
+const CONFIG = { responsive: true, displayModeBar: false };
+
+// ── Derived helpers ───────────────────────────────────────────────────────────
+
+function pubCountsByYear(papers, units) {
+  const counts = Object.fromEntries(units.map(u => [u, {}]));
+  papers.forEach(p => {
+    if (!units.includes(p.unit) || !p.year) return;
+    counts[p.unit][p.year] = (counts[p.unit][p.year] || 0) + 1;
+  });
+  return counts;
+}
+
+function topJournals(papers, unit, n = 12) {
+  const counts = {};
+  papers.filter(p => p.unit === unit && p.journal).forEach(p => {
+    counts[p.journal] = (counts[p.journal] || 0) + 1;
+  });
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, n)
+    .map(([journal, count]) => ({ journal, count }));
+}
+
+// ── Chart renderers ───────────────────────────────────────────────────────────
+
+function renderTimeline(papers, units) {
+  const counts = pubCountsByYear(papers, units);
+  const allYears = [...new Set(papers.map(p => p.year).filter(Boolean))].sort();
+
+  const traces = units.map(unit => ({
+    x: allYears,
+    y: allYears.map(y => counts[unit][y] || 0),
+    name: unit,
+    type: "scatter",
+    mode: "lines+markers",
+    line:   { color: PALETTE[unit] || "#999", width: unit === "CEI" ? 3 : 1.5 },
+    marker: { size: unit === "CEI" ? 7 : 5 },
+  }));
+
+  Plotly.newPlot("chart-timeline", traces, {
+    ...BASE_LAYOUT,
+    margin: { t: 10, r: 20, b: 50, l: 55 },
+    xaxis: { title: "Year", dtick: 1, tickformat: "d", gridcolor: "#f0f0f0" },
+    yaxis: { title: "Publications", rangemode: "tozero", gridcolor: "#f0f0f0" },
+    legend: { orientation: "v", x: 1.01, y: 1, font: { size: 11 } },
+    hovermode: "x unified",
+  }, CONFIG);
+}
+
+function renderImpact(summary, metric) {
+  const sorted = [...summary].sort((a, b) => b[metric] - a[metric]);
+  const fmt = v => metric === "mean_citations" ? v.toFixed(2) : v.toLocaleString();
+
+  Plotly.newPlot("chart-impact", [{
+    x: sorted.map(s => s[metric]),
+    y: sorted.map(s => s.unit),
+    type: "bar",
+    orientation: "h",
+    marker: {
+      color: sorted.map(s => PALETTE[s.unit] || "#999"),
+      line: {
+        color: sorted.map(s => s.unit === "CEI" ? "#000" : "transparent"),
+        width: sorted.map(s => s.unit === "CEI" ? 2 : 0),
+      },
+    },
+    text:         sorted.map(s => fmt(s[metric])),
+    textposition: "outside",
+    cliponaxis:   false,
+    hovertemplate: "%{y}: <b>%{text}</b><extra></extra>",
+  }], {
+    ...BASE_LAYOUT,
+    margin: { t: 10, r: 80, b: 50, l: 200 },
+    xaxis: { title: METRIC_LABELS[metric], rangemode: "tozero", gridcolor: "#f0f0f0" },
+    yaxis: { automargin: true },
+  }, CONFIG);
+}
+
+function renderJournals(papers, unit) {
+  const top = topJournals(papers, unit, 12).reverse();
+
+  Plotly.newPlot("chart-journals", [{
+    x: top.map(j => j.count),
+    y: top.map(j => j.journal.length > 48 ? j.journal.slice(0, 45) + "…" : j.journal),
+    type:         "bar",
+    orientation:  "h",
+    marker:       { color: PALETTE[unit] || "#1f77b4" },
+    text:         top.map(j => j.count),
+    textposition: "outside",
+    cliponaxis:   false,
+    hovertemplate: "%{y}<br><b>%{x} papers</b><extra></extra>",
+  }], {
+    ...BASE_LAYOUT,
+    margin: { t: 10, r: 60, b: 50, l: 300 },
+    xaxis: { title: "Publications", rangemode: "tozero", gridcolor: "#f0f0f0" },
+    yaxis: { automargin: true },
+  }, CONFIG);
+}
+
+// ── Bootstrap ─────────────────────────────────────────────────────────────────
+
+fetch("data.json")
+  .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+  .then(data => {
+    document.getElementById("loading").style.display = "none";
+    document.getElementById("app").style.display     = "block";
+
+    const { papers, summary, units, generated, year_range } = data;
+    const focusUnits = units.filter(u => u !== "Other UTalca");
+
+    // Stats cards
+    const focusSummary = summary.filter(s => focusUnits.includes(s.unit));
+    const totalPapers  = focusSummary.reduce((a, s) => a + s.papers, 0);
+    const totalCit     = focusSummary.reduce((a, s) => a + s.total_citations, 0);
+    const ceiRow       = summary.find(s => s.unit === "CEI") || {};
+    const ceiShare     = totalPapers > 0
+      ? ((ceiRow.papers || 0) / totalPapers * 100).toFixed(1) + "%"
+      : "–";
+
+    const cards = [
+      { value: totalPapers.toLocaleString(), label: "Total Papers" },
+      { value: totalCit.toLocaleString(),    label: "Total Citations" },
+      { value: ceiRow.papers || "–",         label: "CEI Papers" },
+      { value: ceiShare,                     label: "CEI Share" },
+      { value: focusUnits.length,            label: "Units" },
+      { value: year_range[0] + "–" + year_range[1], label: "Period" },
+    ];
+    document.getElementById("stats-row").innerHTML = cards
+      .map(c => `<div class="stat-card"><div class="value">${c.value}</div><div class="label">${c.label}</div></div>`)
+      .join("");
+
+    document.getElementById("footer").innerHTML =
+      `Data: <a href="https://openalex.org" target="_blank">OpenAlex</a> &nbsp;·&nbsp; ` +
+      `Generated: ${generated} &nbsp;·&nbsp; ` +
+      `<a href="https://github.com/ecastron/cei_biblio" target="_blank">Source on GitHub</a>`;
+
+    // Initial renders
+    renderTimeline(papers, focusUnits);
+    renderImpact(focusSummary, "h_index");
+
+    // Populate journal unit dropdown
+    const sel = document.getElementById("journal-unit");
+    focusUnits.forEach(u => {
+      const opt = document.createElement("option");
+      opt.value = u; opt.textContent = u;
+      sel.appendChild(opt);
+    });
+    renderJournals(papers, focusUnits[0]);
+    document.getElementById("journals-title").textContent = "Top Journals — " + focusUnits[0];
+
+    // Tab switching
+    document.querySelectorAll(".tab-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+        document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+        btn.classList.add("active");
+        document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+        window.dispatchEvent(new Event("resize"));
+      });
+    });
+
+    // Impact metric selector
+    document.getElementById("impact-metric").addEventListener("change", e => {
+      const m = e.target.value;
+      document.getElementById("impact-title").textContent = METRIC_LABELS[m] + " by Unit";
+      renderImpact(focusSummary, m);
+    });
+
+    // Journal unit selector
+    document.getElementById("journal-unit").addEventListener("change", e => {
+      renderJournals(papers, e.target.value);
+      document.getElementById("journals-title").textContent = "Top Journals — " + e.target.value;
+    });
+  })
+  .catch(() => {
+    document.getElementById("loading").innerHTML =
+      `<b>Could not load data.json.</b><br><br>` +
+      `Run the notebook first to generate <code>docs/data.json</code>, then serve this folder:<br><br>` +
+      `<code>python -m http.server 8000 --directory docs/</code><br><br>` +
+      `then open <a href="http://localhost:8000">http://localhost:8000</a><br><br>` +
+      `Or enable GitHub Pages on the <code>docs/</code> folder in your repository settings.`;
+  });
+</script>
+</body>
+</html>
