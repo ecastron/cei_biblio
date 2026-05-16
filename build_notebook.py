@@ -124,18 +124,12 @@ def load_cache(path: pathlib.Path = CACHE_FILE) -> list | None:
 
 # ── Cell 3: Fetch ─────────────────────────────────────────────────────────────
 cells.append(nbf.v4.new_code_cell("""\
-SELECTED_FIELDS = [
-    "id", "doi", "title", "publication_year", "cited_by_count",
-    "authorships", "primary_location", "type",
-]
-
 def fetch_utalca_works() -> list:
     query = (
         Works()
         .filter(authorships={"institutions": {"id": UTALCA_ID}})
         .filter(type="article")
         .filter(publication_year=f">{YEAR_MIN - 1}")
-        .select(SELECTED_FIELDS)
     )
     all_works = []
     pages = query.paginate(method="cursor", per_page=200, n_max=50_000)
