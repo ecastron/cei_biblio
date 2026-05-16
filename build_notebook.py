@@ -266,15 +266,20 @@ if needed_ids:
 else:
     print(f"All {len(sources_cache):,} sources already cached")
 
-# Build {source_id → 2yr_mean_citedness} lookup
+# Build lookups from the source cache
 JOURNAL_2YR_IF: dict[str, float] = {}
+JOURNAL_PUBLISHER: dict[str, str] = {}
 for sid, src in sources_cache.items():
     stats = src.get("summary_stats") or {}
     val = stats.get("2yr_mean_citedness")
     if val is not None:
         JOURNAL_2YR_IF[sid] = float(val)
+    pub = src.get("host_organization_name")
+    if pub:
+        JOURNAL_PUBLISHER[sid] = pub
 
 print(f"Journals with 2-year mean citedness: {len(JOURNAL_2YR_IF):,} / {len(sources_cache):,}")
+print(f"Journals with publisher name:        {len(JOURNAL_PUBLISHER):,} / {len(sources_cache):,}")
 """))
 
 # ── Cell 4: Classification helpers ───────────────────────────────────────────
@@ -351,6 +356,7 @@ def build_records(works: list) -> pd.DataFrame:
         unit_set = classify_work(work)
         journal, journal_id = _extract_journal(work)
         journal_2yr_if = JOURNAL_2YR_IF.get(journal_id) if journal_id else None
+        publisher      = JOURNAL_PUBLISHER.get(journal_id) if journal_id else None
         base = {
             "openalex_id":              work.get("id", ""),
             "doi":                      work.get("doi", ""),
@@ -360,6 +366,7 @@ def build_records(works: list) -> pd.DataFrame:
             "journal":                  journal,
             "journal_id":               journal_id,
             "journal_2yr_mean_citedness": journal_2yr_if,
+            "publisher":                publisher,
         }
         for unit in unit_set:
             rows.append({**base, "unit": unit})
@@ -689,6 +696,7 @@ papers_export = [
             round(float(row["journal_2yr_mean_citedness"]), 3)
             if pd.notna(row["journal_2yr_mean_citedness"]) else None
         ),
+        "publisher":      row["publisher"] if pd.notna(row["publisher"]) else None,
         "title":          row["title"],
         "doi":            row["doi"] if pd.notna(row["doi"]) and row["doi"] else None,
         "cited_by_count": int(row["cited_by_count"]),
