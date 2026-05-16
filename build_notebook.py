@@ -67,8 +67,8 @@ config.max_retries = 5
 config.retry_backoff_factor = 0.5
 config.retry_http_codes = [429, 500, 503]
 
-# ── Institution ───────────────────────────────────────────────────────────────
-UTALCA_ID = "I143078644"   # OpenAlex institution ID for Universidad de Talca
+# ── Institution (ID resolved dynamically in next cell) ───────────────────────
+UTALCA_ID = None   # set automatically by the institution lookup cell below
 YEAR_MIN   = 2020
 
 # ── CEI detection patterns ────────────────────────────────────────────────────
@@ -122,7 +122,27 @@ def load_cache(path: pathlib.Path = CACHE_FILE) -> list | None:
     return None
 """))
 
-# ── Cell 3: Fetch ─────────────────────────────────────────────────────────────
+# ── Cell 3: Verify institution ID ─────────────────────────────────────────────
+cells.append(nbf.v4.new_code_cell("""\
+from pyalex import Institutions
+
+results = Institutions().search("Universidad de Talca").get()
+print("Matches for 'Universidad de Talca' in OpenAlex:")
+for r in results:
+    print(f"  {r['id']}  |  {r['display_name']}  |  ROR: {r.get('ror','—')}  |  Works: {r.get('works_count',0):,}")
+
+# Auto-select the first match if only one result
+if len(results) == 1:
+    UTALCA_ID = results[0]["id"]
+    print(f"\\nUsing: {UTALCA_ID}")
+else:
+    # If multiple hits, pick the one with the most works (most likely the right one)
+    best = max(results, key=lambda r: r.get("works_count", 0))
+    UTALCA_ID = best["id"]
+    print(f"\\nAuto-selected best match: {UTALCA_ID}  ({best['display_name']})")
+"""))
+
+# ── Cell 4: Fetch ─────────────────────────────────────────────────────────────
 cells.append(nbf.v4.new_code_cell("""\
 def fetch_utalca_works() -> list:
     query = (
