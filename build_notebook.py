@@ -72,7 +72,10 @@ config.retry_http_codes = [429, 500, 503]
 UTALCA_ID = None   # set automatically by the institution lookup cell below
 YEAR_MIN   = 2020
 
-# ── CEI detection patterns ────────────────────────────────────────────────────
+# ── CEI / CBSM detection patterns (research-center names are unique ─────────
+# enough to imply UTalca affiliation regardless of how OpenAlex parsed
+# the authorship's institutions array — so we scan ALL authorship raw
+# strings for these, not just UTalca-tagged ones)
 _CEI_PATTERNS = [
     r"centro\\s+de\\s+ecolog[íi]a\\s+integrativa",
     r"center\\s+for\\s+integrative\\s+ecology",
@@ -80,10 +83,18 @@ _CEI_PATTERNS = [
 ]
 CEI_RE = re.compile("|".join(_CEI_PATTERNS), re.IGNORECASE)
 
+_CBSM_PATTERNS = [
+    r"centro\\s+de\\s+bioinform[áa]tica",
+    r"center\\s+for\\s+bioinformatics",
+    r"bioinformatics?,?\\s+simulations?\\s+and\\s+modell?ing",
+    r"\\bCBSM\\b",
+]
+CBSM_RE = re.compile("|".join(_CBSM_PATTERNS), re.IGNORECASE)
+
 # ── Target unit patterns (order matters: first match wins) ───────────────────
+# Faculties / institutes: only matched against UTalca-tagged authorships,
+# since "Faculty of Engineering" on a foreign author would be a false hit.
 UNIT_LABEL_PATTERNS: list[tuple[re.Pattern, str]] = [
-    (re.compile(r"centro\\s+de\\s+bioinform[áa]tica|center\\s+for\\s+bioinformatics|bioinformatics?,?\\s+simulations?\\s+and\\s+modell?ing|\\bCBSM\\b", re.I),
-     "CBSM"),
     (re.compile(r"ciencias\\s+de\\s+la\\s+salud|health\\s+sciences|faculty\\s+of\\s+health", re.I),
      "Fac. Ciencias de la Salud"),
     (re.compile(r"ciencias\\s+biol[oó]gicas|biological\\s+sciences|instituto\\s+de\\s+ciencias\\s+biol", re.I),
@@ -101,7 +112,7 @@ UNIT_LABEL_PATTERNS: list[tuple[re.Pattern, str]] = [
 ]
 
 TARGET_UNITS = [label for _, label in UNIT_LABEL_PATTERNS]
-ALL_UNITS    = ["CEI"] + TARGET_UNITS
+ALL_UNITS    = ["CEI", "CBSM"] + TARGET_UNITS
 
 print("Configuration loaded.")
 print(f"Comparing CEI against {len(TARGET_UNITS)} units, articles from {YEAR_MIN}+")
@@ -275,16 +286,35 @@ def normalize_unit(raw: str) -> str:
     return "Other UTalca"
 
 def classify_work(work: dict) -> set:
-    \"\"\"Return the set of unit labels for this work (CEI is exclusive).\"\"\"
+    \"\"\"Return the set of unit labels for this work.
+
+    CEI takes exclusive ownership. CEI / CBSM are detected on ANY
+    authorship's raw affiliation strings (these names imply UTalca
+    even if OpenAlex parsed the institution as a separate entity).
+    Other faculties / institutes are only credited when the authorship
+    is parsed as UTalca-affiliated, to avoid attributing a foreign
+    author's "Faculty of Engineering" to UTalca's.
+    \"\"\"
+    all_raws = [
+        raw
+        for a in work.get("authorships", [])
+        for raw in a.get("raw_affiliation_strings", [])
+    ]
+    if any(CEI_RE.search(r) for r in all_raws):
+        return {"CEI"}
+
     units: set[str] = set()
+    if any(CBSM_RE.search(r) for r in all_raws):
+        units.add("CBSM")
+
     for authorship in work.get("authorships", []):
         inst_ids = [i.get("id", "") for i in authorship.get("institutions", [])]
         if not any(UTALCA_ID in iid for iid in inst_ids):
             continue
         for raw in authorship.get("raw_affiliation_strings", []):
-            if CEI_RE.search(raw):
-                return {"CEI"}   # CEI takes exclusive ownership
-            units.add(normalize_unit(raw))
+            unit = normalize_unit(raw)
+            if unit != "Other UTalca":
+                units.add(unit)
     return units or {"Other UTalca"}
 """))
 
