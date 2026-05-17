@@ -92,9 +92,35 @@ _CBSM_PATTERNS = [
 CBSM_RE = re.compile("|".join(_CBSM_PATTERNS), re.IGNORECASE)
 
 # ── Target unit patterns (order matters: first match wins) ───────────────────
-# Faculties / institutes: only matched against UTalca-tagged authorships,
-# since "Faculty of Engineering" on a foreign author would be a false hit.
+# Centers / institutes come BEFORE the broad faculty patterns so a string
+# like "Centro de Pomáceas, Facultad de Ciencias Agrarias, Universidad de
+# Talca" is attributed to the center, not the faculty. CBSM is handled
+# separately above (name-implies-UTalca rescue).
 UNIT_LABEL_PATTERNS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"pom[áa]ceas", re.I),                                                   "Centro Pomáceas"),
+    (re.compile(r"vid\\s+y\\s+(el\\s+)?vino|wine\\s+and\\s+vine", re.I),                 "CT Vid y Vino"),
+    (re.compile(r"suelos\\s+y\\s+cultivos|soils\\s+and\\s+crops", re.I),                 "CT Suelos y Cultivos"),
+    (re.compile(r"centro\\s+tecnol[óo]gico\\s+kipus|\\bKipus\\b", re.I),                 "Kipus"),
+    (re.compile(r"plantas\\s+nativas\\s+de\\s+chile|native\\s+plants\\s+of\\s+chile", re.I),"Plantas Nativas Chile"),
+    (re.compile(r"conversi[óo]n\\s+de\\s+energ[íi]a|energy\\s+conversion", re.I),        "CT Conv. Energía"),
+    (re.compile(r"transferencia\\s+en\\s+riego|riego\\s+y\\s+agroclimatolog[íi]a|\\bCITRA\\b", re.I),"CITRA"),
+    (re.compile(r"estudios\\s+constitucionales|\\bCECOCH\\b", re.I),                     "CECOCH"),
+    (re.compile(r"mejoramiento\\s+gen[ée]tico|fen[óo]mica\\s+vegetal|plant\\s+phenomics", re.I),"Mej. Genético"),
+    (re.compile(r"centro\\s+de\\s+longevidad|longevity\\s+center|\\bvitalis\\b", re.I),  "Vitalis"),
+    (re.compile(r"psicolog[íi]a\\s+aplicada|applied\\s+psychology", re.I),               "C. Psic. Aplicada"),
+    (re.compile(r"derecho\\s+del\\s+trabajo|labor\\s+law|seguridad\\s+social", re.I),    "C. Derecho Trabajo"),
+    (re.compile(r"competitividad\\s+del\\s+maule|maule\\s+competitiveness", re.I),       "Comp. Maule"),
+    (re.compile(r"derechos.*(infancia|adolescencia)|infancia\\s+y\\s+adolescencia", re.I),"C. Infancia y Adolesc."),
+    (re.compile(r"documentaci[óo]n\\s+patrimonial|heritage\\s+documentation", re.I),     "Documentación Patrimonial"),
+    (re.compile(r"estudios\\s+migratorios|\\bCENEM\\b", re.I),                           "CENEM"),
+    (re.compile(r"ciencias\\s+cognitivas|cognitive\\s+sciences?\\b", re.I),              "C. Ciencias Cognitivas"),
+    (re.compile(r"centro\\s+de\\s+an[áa]lisis\\s+pol[íi]tico|political\\s+analysis\\s+center", re.I),"C. Análisis Político"),
+    (re.compile(r"centro\\s+de\\s+investigaci[óo]n\\s+en\\s+trombosis|trombosis\\s+y\\s+envejecimiento|thrombosis\\s+and\\s+(healthy\\s+)?aging", re.I),"CITES"),
+    (re.compile(r"derecho\\s+penal|criminal\\s+law", re.I),                              "C. Derecho Penal"),
+    (re.compile(r"nanomedicina|nanomedicine", re.I),                                     "Nanomedicina"),
+    (re.compile(r"derechos\\s+de\\s+las\\s+minor[íi]as|minority\\s+rights|gesti[óo]n\\s+de\\s+la\\s+diversidad", re.I),"C. Minorías"),
+    (re.compile(r"centro\\s+internacional\\s+de\\s+educaci[óo]n\\s+en\\s+ingenier[íi]a|international\\s+center\\s+for\\s+engineering\\s+education", re.I),"CIEI"),
+    # ── Faculties / institutes (fall through after the centers) ─────────
     (re.compile(r"ciencias\\s+de\\s+la\\s+salud|health\\s+sciences|faculty\\s+of\\s+health", re.I),
      "Fac. Ciencias de la Salud"),
     (re.compile(r"ciencias\\s+biol[oó]gicas|biological\\s+sciences|instituto\\s+de\\s+ciencias\\s+biol", re.I),
@@ -114,8 +140,48 @@ UNIT_LABEL_PATTERNS: list[tuple[re.Pattern, str]] = [
 TARGET_UNITS = [label for _, label in UNIT_LABEL_PATTERNS]
 ALL_UNITS    = ["CEI", "CBSM"] + TARGET_UNITS
 
+# Display metadata per unit. Drives the side-panel tooltips, the tab
+# grouping (centers vs faculties), and the bilingual labels on the
+# dashboard. Keys must match the short labels used everywhere else.
+UNIT_META: dict[str, dict] = {
+    # ── Research / technological centers ───────────────────────────────
+    "CEI":                     {"group": "centers", "es": "Centro de Ecología Integrativa",                          "en": "Center for Integrative Ecology"},
+    "CBSM":                    {"group": "centers", "es": "Centro de Bioinformática, Simulación y Modelado",          "en": "Center for Bioinformatics, Simulations and Modelling"},
+    "Centro Pomáceas":         {"group": "centers", "es": "Centro de Pomáceas",                                       "en": "Pomáceas Research Center"},
+    "CT Vid y Vino":           {"group": "centers", "es": "Centro Tecnológico de la Vid y el Vino",                   "en": "Wine and Vine Technological Center"},
+    "CT Suelos y Cultivos":    {"group": "centers", "es": "Centro Tecnológico de Suelos y Cultivos",                  "en": "Soils and Crops Technological Center"},
+    "Kipus":                   {"group": "centers", "es": "Centro Tecnológico Kipus",                                 "en": "Kipus Technological Center"},
+    "Plantas Nativas Chile":   {"group": "centers", "es": "Centro de Plantas Nativas de Chile",                       "en": "Center for Native Plants of Chile"},
+    "CT Conv. Energía":        {"group": "centers", "es": "Centro Tecnológico de Conversión de Energía",              "en": "Energy Conversion Technological Center"},
+    "CITRA":                   {"group": "centers", "es": "Centro de Investigación y Transferencia en Riego y Agroclimatología", "en": "Research and Transfer Center for Irrigation and Agroclimatology"},
+    "CECOCH":                  {"group": "centers", "es": "Centro de Estudios Constitucionales de Chile",             "en": "Center for Constitutional Studies of Chile"},
+    "Mej. Genético":           {"group": "centers", "es": "Centro de Mejoramiento Genético y Fenómica Vegetal",        "en": "Center for Plant Genetic Improvement and Phenomics"},
+    "Vitalis":                 {"group": "centers", "es": "Centro de Longevidad Vitalis",                              "en": "Vitalis Longevity Center"},
+    "C. Psic. Aplicada":       {"group": "centers", "es": "Centro de Psicología Aplicada",                            "en": "Center for Applied Psychology"},
+    "C. Derecho Trabajo":      {"group": "centers", "es": "Centro de Estudios de Derecho del Trabajo y de la Seguridad Social", "en": "Center for Labor Law and Social Security Studies"},
+    "Comp. Maule":             {"group": "centers", "es": "Centro de Competitividad del Maule",                       "en": "Maule Competitiveness Center"},
+    "C. Infancia y Adolesc.":  {"group": "centers", "es": "Centro de Estudios sobre los Derechos de la Infancia y la Adolescencia", "en": "Center for Studies on Children and Adolescents' Rights"},
+    "Documentación Patrimonial":{"group":"centers", "es": "Centro de Documentación Patrimonial",                      "en": "Heritage Documentation Center"},
+    "CENEM":                   {"group": "centers", "es": "Centro Nacional de Estudios Migratorios",                  "en": "National Center for Migration Studies"},
+    "C. Ciencias Cognitivas":  {"group": "centers", "es": "Centro de Investigación en Ciencias Cognitivas",           "en": "Center for Research in Cognitive Sciences"},
+    "C. Análisis Político":    {"group": "centers", "es": "Centro de Análisis Político",                              "en": "Center for Political Analysis"},
+    "CITES":                   {"group": "centers", "es": "Centro de Investigación en Trombosis y Envejecimiento Saludable", "en": "Center for Research on Thrombosis and Healthy Aging"},
+    "C. Derecho Penal":        {"group": "centers", "es": "Centro de Estudios de Derecho Penal",                      "en": "Center for Criminal Law Studies"},
+    "Nanomedicina":            {"group": "centers", "es": "Centro de Nanomedicina, Diagnóstico y Desarrollo de Fármacos", "en": "Center for Nanomedicine, Diagnostics and Drug Development"},
+    "C. Minorías":             {"group": "centers", "es": "Centro de Derechos de las Minorías y Gestión de la Diversidad", "en": "Center for Minority Rights and Diversity Management"},
+    "CIEI":                    {"group": "centers", "es": "Centro Internacional de Educación en Ingeniería",          "en": "International Center for Engineering Education"},
+    # ── Faculties / institutes ─────────────────────────────────────────
+    "Fac. Ciencias de la Salud":  {"group": "faculties", "es": "Facultad de Ciencias de la Salud",      "en": "Faculty of Health Sciences"},
+    "Inst. Ciencias Biológicas":  {"group": "faculties", "es": "Instituto de Ciencias Biológicas",      "en": "Institute of Biological Sciences"},
+    "Fac. Ciencias Agrarias":     {"group": "faculties", "es": "Facultad de Ciencias Agrarias",         "en": "Faculty of Agrarian Sciences"},
+    "Inst. Química R. Naturales": {"group": "faculties", "es": "Instituto de Química de Recursos Naturales", "en": "Institute of Natural Resources Chemistry"},
+    "Inst. Matemáticas":          {"group": "faculties", "es": "Instituto de Matemáticas",              "en": "Institute of Mathematics"},
+    "Fac. Medicina":              {"group": "faculties", "es": "Facultad de Medicina",                  "en": "Faculty of Medicine"},
+    "Fac. Ingeniería":            {"group": "faculties", "es": "Facultad de Ingeniería",                "en": "Faculty of Engineering"},
+}
+
 print("Configuration loaded.")
-print(f"Comparing CEI against {len(TARGET_UNITS)} units, articles from {YEAR_MIN}+")
+print(f"Tracking {sum(1 for u in UNIT_META.values() if u['group']=='centers')} centers + {sum(1 for u in UNIT_META.values() if u['group']=='faculties')} faculties/institutes, articles from {YEAR_MIN}+")
 """))
 
 # ── Cell 2: Cache helpers ─────────────────────────────────────────────────────
@@ -864,10 +930,17 @@ summary_export = [
     for _, row in summary.iterrows()
 ]
 
+# Only export units that actually have papers in the filtered set
+active_units = [u for u in ALL_UNITS if u in set(work_unit_export["unit"].unique())]
+# Always emit metadata for active units; the dashboard reads it for
+# tab grouping and bilingual tooltips.
+unit_meta_export = {u: UNIT_META[u] for u in active_units if u in UNIT_META}
+
 site_data = {
     "generated":  datetime.date.today().isoformat(),
     "year_range": [YEAR_MIN, int(df["year"].dropna().max())],
-    "units":      ALL_UNITS,
+    "units":      active_units,
+    "unit_meta":  unit_meta_export,
     "papers":     papers_export,
     "summary":    summary_export,
 }
@@ -876,6 +949,9 @@ with open(docs_dir / "data.json", "w", encoding="utf-8") as fh:
     json.dump(site_data, fh, ensure_ascii=False, indent=2)
 
 print(f"Exported {len(papers_export):,} paper records → docs/data.json")
+print(f"Active units (with papers): {len(active_units)} "
+      f"({sum(1 for u in active_units if UNIT_META.get(u,{}).get('group')=='centers')} centers + "
+      f"{sum(1 for u in active_units if UNIT_META.get(u,{}).get('group')=='faculties')} faculties/institutes)")
 print("Interactive website ready — open docs/index.html or enable GitHub Pages on the docs/ folder")
 """))
 
