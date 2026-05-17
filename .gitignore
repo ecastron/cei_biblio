@@ -1,6 +1,7 @@
 openalex_cache.json
 sources_cache.json
 *.csv
+!journal_overrides.csv
 __pycache__/
 .ipynb_checkpoints/
 *.pyc

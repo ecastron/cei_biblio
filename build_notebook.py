@@ -474,6 +474,62 @@ for sid, src in sources_cache.items():
 print(f"\\nMatch coverage across {len(sources_cache):,} cached sources:")
 print(f"  WoS    : {n_wos_hit:,} ({100*n_wos_hit/max(len(sources_cache),1):.1f}%)")
 print(f"  Scopus : {n_scopus_hit:,} ({100*n_scopus_hit/max(len(sources_cache),1):.1f}%)")
+
+# ── Manual overrides (journal_overrides.csv) ────────────────────────────
+# Fill in or correct individual journals not covered by the main xlsx.
+OVERRIDES_FILE = pathlib.Path("journal_overrides.csv")
+OVERRIDES_URL  = (
+    "https://raw.githubusercontent.com/ecastron/cei_biblio/"
+    "claude/project-planning-PKOFJ/journal_overrides.csv"
+)
+if not OVERRIDES_FILE.exists():
+    try:
+        urllib.request.urlretrieve(OVERRIDES_URL, OVERRIDES_FILE)
+    except Exception as e:
+        print(f"  (no journal_overrides.csv: {e})")
+
+if OVERRIDES_FILE.exists():
+    ov = pd.read_csv(OVERRIDES_FILE).fillna("")
+    n_applied_w = n_applied_s = n_skipped = 0
+    for _, row in ov.iterrows():
+        rec_w = {
+            "value":    _norm_value(row.get("wos_jif")),
+            "quartile": _norm_quartile(row.get("wos_quartile")),
+        }
+        rec_s = {
+            "value":    _norm_value(row.get("scopus_sjr")),
+            "quartile": _norm_quartile(row.get("scopus_quartile")),
+        }
+        if rec_w["value"] is None and rec_w["quartile"] is None \\
+           and rec_s["value"] is None and rec_s["quartile"] is None:
+            continue
+        # Find matching source(s) — try ISSN first, then normalized name
+        target_sids: list[str] = []
+        issns = _split_issns(row.get("issn"))
+        nm    = _norm_name(row.get("journal"))
+        for sid, src in sources_cache.items():
+            if issns and any(i in _source_issns(src) for i in issns):
+                target_sids.append(sid); continue
+            if nm and _norm_name(src.get("display_name")) == nm:
+                target_sids.append(sid)
+        if not target_sids:
+            n_skipped += 1
+            print(f"  ! override unmatched: {row.get('journal', '?')!r} (issn={row.get('issn','')!r})")
+            continue
+        for sid in target_sids:
+            if rec_w["value"] is not None or rec_w["quartile"]:
+                cur = JOURNAL_WOS.get(sid, {"value": None, "quartile": None}).copy()
+                if rec_w["value"]    is not None: cur["value"]    = rec_w["value"]
+                if rec_w["quartile"]:             cur["quartile"] = rec_w["quartile"]
+                JOURNAL_WOS[sid] = cur
+                n_applied_w += 1
+            if rec_s["value"] is not None or rec_s["quartile"]:
+                cur = JOURNAL_SCOPUS.get(sid, {"value": None, "quartile": None}).copy()
+                if rec_s["value"]    is not None: cur["value"]    = rec_s["value"]
+                if rec_s["quartile"]:             cur["quartile"] = rec_s["quartile"]
+                JOURNAL_SCOPUS[sid] = cur
+                n_applied_s += 1
+    print(f"\\nManual overrides applied: WoS {n_applied_w} · Scopus {n_applied_s} · unmatched {n_skipped}")
 """))
 
 # ── Cell 4: Classification helpers ───────────────────────────────────────────
